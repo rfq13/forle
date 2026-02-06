@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   changes:
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: backend/.ruby-version
+          ruby-version: "3.2.3"
           bundler-cache: true
         env:
           BUNDLE_GEMFILE: backend/Gemfile
@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: backend/.ruby-version
+          ruby-version: "3.2.3"
           bundler-cache: true
         env:
           BUNDLE_GEMFILE: backend/Gemfile
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: backend/.ruby-version
+          ruby-version: "3.2.3"
           bundler-cache: true
       - uses: actions/cache@v4
         with:
@@ -101,7 +101,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: backend/.ruby-version
+          ruby-version: "3.2.3"
           bundler-cache: true
         env:
           BUNDLE_GEMFILE: backend/Gemfile
@@ -131,7 +131,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: backend/.ruby-version
+          ruby-version: "3.2.3"
           bundler-cache: true
         env:
           BUNDLE_GEMFILE: backend/Gemfile
@@ -180,7 +180,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: backend/.ruby-version
+          ruby-version: "3.2.3"
           bundler-cache: true
         env:
           BUNDLE_GEMFILE: backend/Gemfile
