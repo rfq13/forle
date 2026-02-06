@@ -1,0 +1,10 @@
+<h1>Chatroom</h1>
+
+<div id="messages">
+  <%= render @messages %>
+</div>
+
+<%= form_with model: @message, remote: true do |f| %>
+  <%= f.text_field :content, placeholder: "Type a message..." %>
+  <%= f.submit "Send" %>
+<% end %>

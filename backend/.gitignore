@@ -1,0 +1,15 @@
+.env
+.env.*
+.bundle/
+log/*
+tmp/*
+storage/*
+node_modules/
+public/assets/
+public/packs/
+.byebug_history
+.ruby-version
+coverage/
+vendor/bundle/
+*.pid
+*.pid.lock
