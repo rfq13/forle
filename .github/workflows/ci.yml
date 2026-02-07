@@ -36,10 +36,10 @@ jobs:
           bundler-cache: true
           working-directory: backend
       - name: Scan with Brakeman
-        run: bin/brakeman --no-pager
+        run: bundle exec brakeman --no-pager
         working-directory: backend
       - name: Scan gems with Bundler Audit
-        run: bin/bundler-audit
+        run: bundle exec bundler-audit
         working-directory: backend
 
   backend_scan_js:
@@ -54,7 +54,7 @@ jobs:
           bundler-cache: true
           working-directory: backend
       - name: Scan importmap dependencies
-        run: bin/importmap audit
+        run: bundle exec importmap audit
         working-directory: backend
 
   backend_lint:
@@ -106,7 +106,7 @@ jobs:
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
-        run: bin/rails db:test:prepare test
+        run: bundle exec rails db:test:prepare test
         working-directory: backend
 
   backend_system_test:
@@ -135,7 +135,7 @@ jobs:
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
-        run: bin/rails db:test:prepare test:system
+        run: bundle exec rails db:test:prepare test:system
         working-directory: backend
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -187,5 +187,5 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
-        run: bin/kamal deploy
+        run: bundle exec kamal deploy
         working-directory: backend
