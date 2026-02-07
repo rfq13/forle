@@ -53,6 +53,9 @@ jobs:
           ruby-version: "3.2.3"
           bundler-cache: true
           working-directory: backend
+      - name: Make binstubs executable
+        run: chmod +x bin/importmap
+        working-directory: backend
       - name: Scan importmap dependencies
         run: bin/importmap audit
         working-directory: backend
