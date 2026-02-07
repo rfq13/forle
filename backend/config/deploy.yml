@@ -41,7 +41,7 @@ env:
   secret:
     - RAILS_MASTER_KEY
     - DATABASE_URL
-  clear:
+  clear: {}
 
     # Set number of processes dedicated to Solid Queue (default: 1)
     # JOB_CONCURRENCY: 3
