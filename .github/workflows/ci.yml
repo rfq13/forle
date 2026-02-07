@@ -134,11 +134,22 @@ jobs:
           ruby-version: "3.2.3"
           bundler-cache: true
           working-directory: backend
+      - name: Prepare test database
+        env:
+          RAILS_ENV: test
+          DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/backend_test
+        run: bundle exec rails db:test:prepare
+        working-directory: backend
       - name: Run system tests
         env:
           RAILS_ENV: test
           DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/backend_test
-        run: bundle exec rails db:test:prepare && bundle exec rails test:system
+        run: |
+          if [ -d test/system ]; then
+            bundle exec rails test:system
+          else
+            echo "No system tests, skipping"
+          fi
         working-directory: backend
       - uses: actions/upload-artifact@v4
         if: failure()
