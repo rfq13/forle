@@ -14,8 +14,50 @@ Dokumen ini menjelaskan langkah setup deployment monorepo menggunakan GitHub Act
 ## Langkah 1: Siapkan Droplet
 
 1. Buat droplet Ubuntu 22.04.
-2. Pasang Docker dan Docker Compose.
-3. Buka port 80 dan 443 di firewall droplet.
+2. Pasang Docker dan Docker Compose:
+
+   ```bash
+   # Update package index
+   sudo apt-get update
+
+   # Install prerequisites
+   sudo apt-get install -y ca-certificates curl gnupg lsb-release
+
+   # Add Docker's official GPG key
+   sudo mkdir -p /etc/apt/keyrings
+   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+   # Set up Docker repository
+   echo \
+     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+     $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+   # Install Docker Engine
+   sudo apt-get update
+   sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+   # Verify Docker installation
+   sudo docker run hello-world
+
+   # Add current user to docker group (optional, untuk menjalankan docker tanpa sudo)
+   sudo usermod -aG docker $USER
+
+   # Enable Docker to start on boot
+   sudo systemctl enable docker
+   sudo systemctl start docker
+   ```
+
+3. Buka port 80 dan 443 di firewall droplet:
+
+   ```bash
+   # Jika menggunakan UFW
+   sudo ufw allow 80/tcp
+   sudo ufw allow 443/tcp
+   sudo ufw allow 22/tcp
+   sudo ufw enable
+
+   # Jika menggunakan DigitalOcean Cloud Firewall, tambahkan rule di panel DigitalOcean
+   ```
 
 ## Langkah 2: Generate SSH Key
 
@@ -186,6 +228,56 @@ Workflow utama berada di `.github/workflows/ci.yml` dan berjalan untuk monorepo:
 
 ## Troubleshooting
 
+### Error: "docker: command not found"
+
+Jika deployment gagal dengan error `bash: line 1: docker: command not found`, berarti Docker belum terinstall pada droplet deployment.
+
+**Solusi:**
+
+1. SSH ke droplet:
+
+   ```bash
+   ssh root@<droplet-ip>
+   ```
+
+2. Install Docker (lihat Langkah 1 di atas untuk detail lengkap):
+
+   ```bash
+   # Quick install script (recommended)
+   curl -fsSL https://get.docker.com -o get-docker.sh
+   sudo sh get-docker.sh
+
+   # Verify installation
+   sudo docker --version
+   ```
+
+3. Pastikan user yang digunakan untuk deployment memiliki akses ke Docker:
+
+   ```bash
+   # Jika menggunakan user root (default), sudah memiliki akses
+   # Jika menggunakan user lain, tambahkan ke docker group:
+   sudo usermod -aG docker <username>
+   ```
+
+4. Restart deployment:
+   ```bash
+   # Dari local machine
+   cd backend
+   bundle exec kamal deploy
+   ```
+
+### Error: "Permission denied" pada Docker build
+
+Jika build Docker gagal dengan error `/bin/sh: 1: ./bin/rails: Permission denied`, file executable tidak memiliki permission yang benar.
+
+**Solusi:**
+
+Dockerfile sudah diperbaiki dengan menambahkan `RUN chmod +x bin/*` setelah copy application code. Pastikan Anda menggunakan versi terbaru dari Dockerfile.
+
+### Error lainnya
+
 - Jika deploy gagal, cek log Actions pada job `backend_deploy`.
 - Pastikan SSH key dan `RAILS_MASTER_KEY` benar.
 - Pastikan droplet dapat diakses dari GitHub Actions.
+- Cek log Kamal: `cd backend && bundle exec kamal app logs -f`
+- Verifikasi koneksi SSH: `ssh -o StrictHostKeyChecking=no root@<droplet-ip> "echo 'SSH OK'"`
