@@ -2,12 +2,13 @@
 
 ## Ringkasan
 
-Dokumen ini menjelaskan langkah setup deployment monorepo menggunakan GitHub Actions dan DigitalOcean, dengan backend Rails melalui Kamal.
+Dokumen ini menjelaskan langkah setup deployment monorepo menggunakan GitHub Actions dan DigitalOcean, dengan backend Rails melalui Kamal dan database Supabase.
 
 ## Prasyarat
 
 - Akun DigitalOcean
 - Droplet Ubuntu (disarankan 22.04)
+- Akun Supabase untuk database
 - Domain (opsional)
 - Akses SSH ke droplet
 
@@ -197,14 +198,149 @@ cat config/master.key
 - Key ini digunakan untuk mendekripsi `config/credentials.yml.enc` yang berisi konfigurasi production (database, API keys, dll.)
 - Jika key hilang, Anda tidak akan bisa mendekripsi credentials yang sudah ada
 
-## Langkah 5: Konfigurasi Kamal
+## Langkah 5: Setup Database dengan Supabase
+
+Proyek ini menggunakan Supabase sebagai database managed service. Supabase menyediakan PostgreSQL dengan transaction pooler yang sudah dikonfigurasi.
+
+### Langkah 1: Dapatkan Connection String dari Supabase
+
+1. Login ke dashboard Supabase: https://supabase.com/dashboard
+2. Pilih project Anda
+3. Buka menu Settings → Database
+4. Scroll ke section "Connection string"
+5. Copy connection string dengan format:
+   - **Transaction Pooler**: `postgresql://postgres.[project-ref]:[password]@aws-1-[region].pooler.supabase.com:6543/postgres`
+   - **Direct Connection**: `postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres`
+
+**Catatan Penting:**
+
+- Gunakan **Transaction Pooler** untuk production (port 6543)
+- Gunakan **Direct Connection** untuk development/testing atau jika perlu menjalankan migration (port 5432)
+- Transaction pooler sudah mengelola connection pooling secara otomatis, jadi tidak perlu mengaktifkan pooler di aplikasi Rails
+
+### Langkah 2: Setup DATABASE_URL di Kamal
+
+Tambahkan `DATABASE_URL` ke `backend/.kamal/secrets`:
+
+```bash
+# Untuk production (gunakan transaction pooler)
+DATABASE_URL="postgresql://postgres.btdqhwbnawpfqjrqnumb:rifqy13dev_@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres"
+```
+
+### Langkah 3: Tambahkan ke GitHub Secrets
+
+Tambahkan `DATABASE_URL` ke GitHub Repository Settings → Secrets and variables → Actions:
+
+- `DATABASE_URL`: Connection string Supabase transaction pooler Anda
+
+**Keuntungan Menggunakan Supabase:**
+
+- Tidak perlu install PostgreSQL pada droplet
+- Automatic backups dan high availability
+- Built-in connection pooling dengan transaction pooler
+- SSL/TLS encryption secara default
+- Scalable dan managed
+
+### Opsi Alternatif: PostgreSQL Manual atau Managed Database Lainnya
+
+Jika tidak menggunakan Supabase, Anda bisa menggunakan:
+
+**Opsi A: PostgreSQL di droplet yang sama (tidak disarankan untuk production)**
+
+Lihat dokumentasi PostgreSQL manual di bawah untuk setup.
+
+**Opsi B: Managed Database lainnya**
+
+Gunakan DigitalOcean Managed Databases, AWS RDS, Google Cloud SQL, atau layanan managed database lainnya. Copy connection string dari dashboard provider dan gunakan sebagai `DATABASE_URL`.
+
+**Opsi C: PostgreSQL sebagai Docker accessory dengan Kamal**
+
+Tambahkan konfigurasi di `backend/config/deploy.yml`:
+
+```yaml
+accessories:
+  db:
+    image: postgres:15
+    host: 192.168.0.2
+    port: "127.0.0.1:5432:5432"
+    env:
+      clear:
+        POSTGRES_USER: backend
+        POSTGRES_DB: backend_production
+      secret:
+        - POSTGRES_PASSWORD
+    directories:
+      - data:/var/lib/postgresql/data
+```
+
+Dan tambahkan `POSTGRES_PASSWORD` ke secrets.
+
+### Setup PostgreSQL Manual (Opsional - Hanya jika tidak menggunakan Supabase)
+
+**Catatan:** Langkah ini TIDAK diperlukan jika menggunakan Supabase atau managed database lainnya.
+
+1. Install PostgreSQL:
+
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y postgresql postgresql-contrib
+   ```
+
+2. Start dan enable PostgreSQL:
+
+   ```bash
+   sudo systemctl start postgresql
+   sudo systemctl enable postgresql
+   ```
+
+3. Konfigurasi PostgreSQL untuk menerima TCP connection:
+
+   ```bash
+   # Edit postgresql.conf
+   sudo nano /etc/postgresql/*/main/postgresql.conf
+
+   # Uncomment dan ubah baris berikut:
+   listen_addresses = '*'
+
+   # Edit pg_hba.conf untuk mengizinkan connection dari Docker
+   sudo nano /etc/postgresql/*/main/pg_hba.conf
+
+   # Tambahkan baris berikut di akhir file:
+   host    all             all             172.17.0.0/16          md5
+   host    all             all             192.168.0.0/16         md5
+   ```
+
+4. Restart PostgreSQL:
+
+   ```bash
+   sudo systemctl restart postgresql
+   ```
+
+5. Buat database dan user:
+
+   ```bash
+   sudo -u postgres psql
+   CREATE DATABASE backend_production;
+   CREATE USER backend WITH PASSWORD 'your_secure_password';
+   GRANT ALL PRIVILEGES ON DATABASE backend_production TO backend;
+   ALTER DATABASE backend_production OWNER TO backend;
+   \q
+   ```
+
+6. Verifikasi PostgreSQL menerima TCP connection:
+   ```bash
+   sudo netstat -tlnp | grep 5432
+   # Output harus menunjukkan 0.0.0.0:5432 atau :::5432
+   ```
+
+## Langkah 6: Konfigurasi Kamal
 
 1. Edit `backend/config/deploy.yml`:
    - Ganti `servers.web` ke IP droplet DigitalOcean.
    - Atur `registry.server` sesuai registry yang digunakan.
-2. Pastikan `backend/.kamal/secrets` berisi `RAILS_MASTER_KEY`.
+2. Pastikan `backend/.kamal/secrets` berisi `RAILS_MASTER_KEY` dan `DATABASE_URL`.
 
-## Langkah 6: Setup Secrets di GitHub
+## Langkah 7: Setup Secrets di GitHub
 
 Tambahkan secrets berikut di GitHub Repository Settings → Secrets and variables → Actions:
 
@@ -216,31 +352,9 @@ Tambahkan secrets berikut di GitHub Repository Settings → Secrets and variable
 
 - `KAMAL_REGISTRY_PASSWORD`: Password untuk registry (jika menggunakan authenticated registry).
 
-### Environment Variables untuk Database
+- `DATABASE_URL`: Connection string Supabase transaction pooler Anda.
 
-Pastikan environment variables berikut di-set di server deployment atau melalui Kamal:
-
-**Opsi 1: Menggunakan DATABASE_URL (disarankan)**
-
-```bash
-# Di backend/.kamal/secrets atau di server
-DATABASE_URL="postgres://backend:password@localhost:5432/backend_production"
-```
-
-**Opsi 2: Menggunakan konfigurasi terpisah**
-
-```bash
-# Di backend/.kamal/secrets atau di server
-BACKEND_DATABASE_PASSWORD="your_secure_password"
-```
-
-Pastikan PostgreSQL server tersedia dan dapat diakses dari droplet. Anda bisa:
-
-- Menggunakan PostgreSQL di droplet yang sama
-- Menggunakan managed database seperti DigitalOcean Managed Databases
-- Menggunakan database server eksternal
-
-## Langkah 7: Struktur Workflow
+## Langkah 8: Struktur Workflow
 
 Workflow utama berada di `.github/workflows/ci.yml` dan berjalan untuk monorepo:
 
@@ -248,7 +362,7 @@ Workflow utama berada di `.github/workflows/ci.yml` dan berjalan untuk monorepo:
 - Cache Ruby dan Node untuk akselerasi build.
 - Deploy otomatis backend ke droplet ketika push ke `main`.
 
-## Langkah 8: Jalankan Deployment
+## Langkah 9: Jalankan Deployment
 
 1. Push ke branch `main`.
 2. GitHub Actions menjalankan job backend dan deploy otomatis.
@@ -288,6 +402,7 @@ Jika deployment gagal dengan error `bash: line 1: docker: command not found`, be
    ```
 
 4. Restart deployment:
+
    ```bash
    # Dari local machine
    cd backend
@@ -301,6 +416,87 @@ Jika build Docker gagal dengan error `/bin/sh: 1: ./bin/rails: Permission denied
 **Solusi:**
 
 Dockerfile sudah diperbaiki dengan menambahkan `RUN chmod +x bin/*` setelah copy application code. Pastikan Anda menggunakan versi terbaru dari Dockerfile.
+
+### Error: "PG::ConnectionBad: connection to server on socket failed"
+
+Jika deployment gagal dengan error `PG::ConnectionBad: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory`, container mencoba mengakses PostgreSQL melalui Unix socket yang tidak tersedia dalam Docker container.
+
+**Penyebab:**
+
+Docker container berjalan dalam environment terisolasi dan tidak dapat mengakses Unix socket PostgreSQL dari host system. Container harus menggunakan TCP connection.
+
+**Solusi:**
+
+1. **Gunakan DATABASE_URL dengan TCP connection (WAJIB):**
+
+   Edit `backend/.kamal/secrets` dan gunakan format berikut:
+
+   ```bash
+   # Untuk Supabase Transaction Pooler (disarankan)
+   DATABASE_URL="postgresql://postgres.btdqhwbnawpfqjrqnumb:rifqy13dev_@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres"
+
+   # Untuk PostgreSQL di host dengan Docker Desktop
+   DATABASE_URL="postgres://backend:password@host.docker.internal:5432/backend_production"
+
+   # Untuk PostgreSQL di host dengan Docker Linux
+   DATABASE_URL="postgres://backend:password@172.17.0.1:5432/backend_production"
+   ```
+
+2. **Untuk Supabase:**
+   - Gunakan connection string transaction pooler (port 6543) untuk production
+   - Gunakan connection string direct connection (port 5432) untuk development/testing
+   - Pastikan password dan project reference benar
+
+3. **Untuk PostgreSQL manual di host:**
+
+   Konfigurasi PostgreSQL untuk menerima TCP connection:
+
+   ```bash
+   # SSH ke droplet
+   ssh root@<droplet-ip>
+
+   # Edit postgresql.conf
+   sudo nano /etc/postgresql/*/main/postgresql.conf
+
+   # Uncomment dan ubah baris berikut:
+   listen_addresses = '*'
+
+   # Edit pg_hba.conf
+   sudo nano /etc/postgresql/*/main/pg_hba.conf
+
+   # Tambahkan baris berikut di akhir file:
+   host    all             all             172.17.0.0/16          md5
+   host    all             all             192.168.0.0/16         md5
+
+   # Restart PostgreSQL
+   sudo systemctl restart postgresql
+   ```
+
+4. **Verifikasi PostgreSQL menerima TCP connection:**
+
+   ```bash
+   sudo netstat -tlnp | grep 5432
+   # Output harus menunjukkan 0.0.0.0:5432 atau :::5432 (bukan 127.0.0.1:5432)
+   ```
+
+5. **Test koneksi dari host:**
+
+   ```bash
+   psql -h localhost -U backend -d backend_production
+   ```
+
+6. **Re-deploy dengan konfigurasi yang benar:**
+   ```bash
+   cd backend
+   bundle exec kamal deploy
+   ```
+
+**Catatan Penting:**
+
+- Jangan gunakan `localhost` dalam `DATABASE_URL` untuk Docker container
+- Gunakan `host.docker.internal` untuk Docker Desktop atau IP address host untuk Docker Linux
+- Untuk Supabase, gunakan connection string yang diberikan langsung dari dashboard
+- Pastikan PostgreSQL dikonfigurasi untuk menerima connection dari Docker network (172.17.0.0/16)
 
 ### Error: "target failed to become healthy within configured timeout"
 
@@ -334,14 +530,20 @@ Jika deployment gagal dengan error `Error: target failed to become healthy withi
    Pastikan environment variables di-set di `backend/.kamal/secrets` atau di server:
 
    ```bash
-   # Opsi 1: Menggunakan DATABASE_URL (disarankan)
-   DATABASE_URL="postgres://backend:password@localhost:5432/backend_production"
+   # Untuk Supabase
+   DATABASE_URL="postgresql://postgres.btdqhwbnawpfqjrqnumb:rifqy13dev_@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres"
 
-   # Opsi 2: Menggunakan password terpisah
-   BACKEND_DATABASE_PASSWORD="your_secure_password"
+   # Untuk PostgreSQL manual
+   DATABASE_URL="postgres://backend:password@host.docker.internal:5432/backend_production"
    ```
 
-3. **Pastikan PostgreSQL tersedia:**
+3. **Pastikan database tersedia:**
+
+   Untuk Supabase:
+   - Cek dashboard Supabase untuk memastikan project aktif
+   - Test koneksi dari local machine menggunakan connection string
+
+   Untuk PostgreSQL manual:
 
    ```bash
    # Cek jika PostgreSQL berjalan
@@ -349,13 +551,6 @@ Jika deployment gagal dengan error `Error: target failed to become healthy withi
 
    # Install PostgreSQL jika belum ada
    sudo apt-get install -y postgresql postgresql-contrib
-
-   # Buat database dan user
-   sudo -u postgres psql
-   CREATE DATABASE backend_production;
-   CREATE USER backend WITH PASSWORD 'your_secure_password';
-   GRANT ALL PRIVILEGES ON DATABASE backend_production TO backend;
-   \q
    ```
 
 4. **Verifikasi health check endpoint:**
