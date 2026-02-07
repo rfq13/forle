@@ -54,7 +54,7 @@ jobs:
           bundler-cache: true
           working-directory: backend
       - name: Scan importmap dependencies
-        run: bundle exec importmap audit
+        run: bin/importmap audit
         working-directory: backend
 
   backend_lint:
