@@ -79,7 +79,7 @@ jobs:
           restore-keys: |
             rubocop-${{ runner.os }}-${{ hashFiles('backend/.ruby-version', 'backend/**/.rubocop.yml', 'backend/**/.rubocop_todo.yml', 'backend/Gemfile.lock') }}-
       - name: RuboCop
-        run: bin/rubocop -f github
+        run: bundle exec rubocop -f github
         working-directory: backend
 
   backend_test:
