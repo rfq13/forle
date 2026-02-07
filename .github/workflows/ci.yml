@@ -190,5 +190,6 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: bundle exec kamal deploy
         working-directory: backend
