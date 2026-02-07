@@ -138,7 +138,7 @@ jobs:
         env:
           RAILS_ENV: test
           DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/backend_test
-        run: bundle exec rails db:test:prepare test:system
+        run: bundle exec rails db:test:prepare && bundle exec rails test:system
         working-directory: backend
       - uses: actions/upload-artifact@v4
         if: failure()
