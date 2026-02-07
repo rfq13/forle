@@ -18,7 +18,7 @@ class Conversation < ApplicationRecord
       id: message.id,
       content: message.content,
       created_at: message.created_at,
-      user_id: message.user_id,
+      user_id: message.user_id
     }
   end
 end

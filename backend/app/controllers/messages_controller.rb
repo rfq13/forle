@@ -22,7 +22,7 @@ class MessagesController < ApplicationController
           payload = {
             type: "conversation_updated",
             conversation_id: conversation.id,
-            sender_id: @message.user_id,
+            sender_id: @message.user_id
           }
           ActionCable.server.broadcast("user_#{conversation.sender_id}", payload)
           ActionCable.server.broadcast("user_#{conversation.recipient_id}", payload)

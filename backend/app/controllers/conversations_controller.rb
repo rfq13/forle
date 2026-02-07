@@ -7,10 +7,10 @@ class ConversationsController < ApplicationController
       .joins(:messages)
       .where(sender_id: user_id).or(Conversation.where(recipient_id: user_id))
       .distinct
-    
+
     render json: @conversations.as_json(
-      include: [:sender, :recipient],
-      methods: [:last_message],
+      include: [ :sender, :recipient ],
+      methods: [ :last_message ]
     )
   end
 
@@ -20,14 +20,14 @@ class ConversationsController < ApplicationController
     else
       @conversation = Conversation.create!(conversation_params)
     end
-    
-    render json: @conversation.as_json(include: [:sender, :recipient])
+
+    render json: @conversation.as_json(include: [ :sender, :recipient ])
   end
 
   def show
     @conversation = Conversation.find_by(id: params[:id])
     if @conversation
-      render json: @conversation.as_json(include: [:sender, :recipient])
+      render json: @conversation.as_json(include: [ :sender, :recipient ])
     else
       render json: { error: "Conversation not found" }, status: :not_found
     end
