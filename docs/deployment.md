@@ -212,6 +212,34 @@ Tambahkan secrets berikut di GitHub Repository Settings → Secrets and variable
 
 - `SSH_PRIVATE_KEY`: Private key untuk akses droplet.
 
+- `RAILS_MASTER_KEY`: Kunci untuk mendekripsi credentials (lihat Langkah 4).
+
+- `KAMAL_REGISTRY_PASSWORD`: Password untuk registry (jika menggunakan authenticated registry).
+
+### Environment Variables untuk Database
+
+Pastikan environment variables berikut di-set di server deployment atau melalui Kamal:
+
+**Opsi 1: Menggunakan DATABASE_URL (disarankan)**
+
+```bash
+# Di backend/.kamal/secrets atau di server
+DATABASE_URL="postgres://backend:password@localhost:5432/backend_production"
+```
+
+**Opsi 2: Menggunakan konfigurasi terpisah**
+
+```bash
+# Di backend/.kamal/secrets atau di server
+BACKEND_DATABASE_PASSWORD="your_secure_password"
+```
+
+Pastikan PostgreSQL server tersedia dan dapat diakses dari droplet. Anda bisa:
+
+- Menggunakan PostgreSQL di droplet yang sama
+- Menggunakan managed database seperti DigitalOcean Managed Databases
+- Menggunakan database server eksternal
+
 ## Langkah 7: Struktur Workflow
 
 Workflow utama berada di `.github/workflows/ci.yml` dan berjalan untuk monorepo:
@@ -273,6 +301,86 @@ Jika build Docker gagal dengan error `/bin/sh: 1: ./bin/rails: Permission denied
 **Solusi:**
 
 Dockerfile sudah diperbaiki dengan menambahkan `RUN chmod +x bin/*` setelah copy application code. Pastikan Anda menggunakan versi terbaru dari Dockerfile.
+
+### Error: "target failed to become healthy within configured timeout"
+
+Jika deployment gagal dengan error `Error: target failed to become healthy within configured timeout (30s)`, container tidak berhasil menjadi healthy dalam waktu yang ditentukan.
+
+**Penyebab Umum:**
+
+1. Database tidak tersedia atau tidak dapat diakses
+2. Environment variable database tidak di-set dengan benar
+3. Rails server gagal start karena error konfigurasi
+4. Health check endpoint tidak merespons
+
+**Solusi:**
+
+1. **Cek log container untuk melihat error:**
+
+   ```bash
+   # SSH ke droplet
+   ssh root@<droplet-ip>
+
+   # Lihat log container
+   docker logs backend-web-<version>
+
+   # Atau menggunakan Kamal
+   cd backend
+   bundle exec kamal app logs -f
+   ```
+
+2. **Verifikasi konfigurasi database:**
+
+   Pastikan environment variables di-set di `backend/.kamal/secrets` atau di server:
+
+   ```bash
+   # Opsi 1: Menggunakan DATABASE_URL (disarankan)
+   DATABASE_URL="postgres://backend:password@localhost:5432/backend_production"
+
+   # Opsi 2: Menggunakan password terpisah
+   BACKEND_DATABASE_PASSWORD="your_secure_password"
+   ```
+
+3. **Pastikan PostgreSQL tersedia:**
+
+   ```bash
+   # Cek jika PostgreSQL berjalan
+   sudo systemctl status postgresql
+
+   # Install PostgreSQL jika belum ada
+   sudo apt-get install -y postgresql postgresql-contrib
+
+   # Buat database dan user
+   sudo -u postgres psql
+   CREATE DATABASE backend_production;
+   CREATE USER backend WITH PASSWORD 'your_secure_password';
+   GRANT ALL PRIVILEGES ON DATABASE backend_production TO backend;
+   \q
+   ```
+
+4. **Verifikasi health check endpoint:**
+
+   Dockerfile sudah dikonfigurasi dengan health check yang memanggil `/up` endpoint. Pastikan route ini tersedia:
+
+   ```ruby
+   # routes.rb
+   get "up" => "rails/health#show", as: :rails_health_check
+   ```
+
+5. **Tingkatkan timeout health check (opsional):**
+
+   Jika aplikasi membutuhkan waktu lebih lama untuk start, Anda bisa mengubah konfigurasi health check di Dockerfile:
+
+   ```dockerfile
+   HEALTHCHECK --interval=30s --timeout=30s --start-period=120s --retries=5 \
+     CMD curl -f http://localhost:80/up || exit 1
+   ```
+
+6. **Debug database connection:**
+   ```bash
+   # Test koneksi database dari dalam container
+   docker exec -it backend-web-<version> rails db:prepare
+   ```
 
 ### Error lainnya
 
