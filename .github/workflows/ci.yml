@@ -105,11 +105,17 @@ jobs:
           ruby-version: "3.2.3"
           bundler-cache: true
           working-directory: backend
+      - name: Prepare test database
+        env:
+          RAILS_ENV: test
+          DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/backend_test
+        run: bundle exec rails db:test:prepare
+        working-directory: backend
       - name: Run tests
         env:
           RAILS_ENV: test
           DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/backend_test
-        run: bundle exec rails db:test:prepare test
+        run: bundle exec rails test
         working-directory: backend
 
   backend_system_test:
@@ -206,3 +212,55 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: bundle exec kamal deploy
         working-directory: backend
+
+  frontend_deploy:
+    runs-on: ubuntu-latest
+    needs: frontend_ci
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Ensure target directory exists
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            sudo mkdir -p /var/www/forle/dist
+            sudo chown -R www-data:www-data /var/www/forle
+            sudo chmod -R 755 /var/www/forle
+
+      - name: Upload dist to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "frontend/dist/*"
+          target: "/var/www/forle/dist"
+          overwrite: true
+
+      - name: Reload Nginx
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            sudo nginx -t && sudo systemctl reload nginx
