@@ -1,4 +1,7 @@
-const API_URL = "http://172.18.162.234:3000";
+const API_URL =
+  (import.meta as any).env?.VITE_API_BASE_URL ??
+  (import.meta as any).env?.VITE_API_URL ??
+  "";
 
 export const fetchMessages = async (conversationId?: string) => {
   const url = conversationId
