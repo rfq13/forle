@@ -7,7 +7,12 @@ image: backend
 # Deploy to these servers.
 servers:
   web:
-    - <%= ENV.fetch("DEPLOY_HOST") %>
+    hosts:
+      - <%= ENV.fetch("DEPLOY_HOST") %>
+    proxy: false
+    options:
+      publish:
+        - "127.0.0.1:3001:3000"
   # job:
   #   hosts:
   #     - 192.168.0.1
@@ -21,8 +26,6 @@ servers:
   # Don't use this when deploying to multiple web servers (then you have to terminate SSL at your load balancer).
   #
   # proxy:
-  ssl: false
-  host: api.forle.growfq.web.id
 
 # Where you keep your container images.
 registry:
